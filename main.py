@@ -9,8 +9,7 @@ def main():
 
     a.period_ticks(start_time, end_time, 7.5, 2, 0.2, 0.005)
 
-    p = a.plot()
-    p.show()
+    a.dataframe_plot()
 
     print(a.history)
 

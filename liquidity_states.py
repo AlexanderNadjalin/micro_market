@@ -4,12 +4,12 @@ from loguru import logger
 
 def liquidity_state(state_0):
     # UH = Ultra High, H = High, M = Medium, L = Low, UL = Ultra Low
-    # states = ['UH', 'H', 'M', 'L', 'UL']
     transition_name = [['UHUH', 'UHH', 'UHM', 'UHL', 'UHUL'],
                        ['HUH', 'HH', 'HM', 'HL', 'HUL'],
                        ['MUH', 'MH', 'MM', 'ML', 'MUL'],
                        ['LUH', 'LH', 'LM', 'LL', 'LUL'],
                        ['ULUH', 'ULH', 'ULM', 'ULL', 'ULUL']]
+
     transition_prob = [[0.97, 0.025, 0.005, 0, 0],
                        [0.0125, 0.97, 0.0125, 0.005, 0],
                        [0.0025, 0.0125, 0.97, 0.0125, 0.0025],
@@ -40,6 +40,11 @@ def liquidity_state(state_0):
         new_state = new_state[2:]
 
     return new_state
+
+
+def liquidity_score(liquidity):
+    dict = {'UH': 5, 'H': 4, 'M': 3, 'L': 2, 'UL': 1}
+    return dict[liquidity]
 
 
 def bid_ask(liquidity, last):
