@@ -4,14 +4,12 @@ import datetime as dt
 
 def main():
     start_time = dt.datetime(2018, 12, 27, 9)
-    end_time = dt.datetime(2018, 12, 27, 17, 30)
-    a = stock.Stock('ALEX', 100.0, start_time, 'UH')
+    end_time = dt.datetime(2018, 12, 27, 10)
+    a = stock.Stock('ALEX', 100.0, start_time, 'M')
 
     a.period_ticks(start_time, end_time, 7.5, 2, 0.2, 0.005)
 
     a.dataframe_plot()
-
-    print(a.history)
 
 
 if __name__ == '__main__':

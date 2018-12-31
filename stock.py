@@ -3,21 +3,21 @@ import datetime as dt
 import matplotlib.pyplot as plt
 import plotly.offline as pyo
 import plotly.graph_objs as go
+from plotly import tools
 from loguru import logger
 import gbm, liquidity_states as ls
-import dash_styles as ds
 
 
 class Stock(object):
     def __init__(self, ticker: str, start_value: float, start_time: dt.datetime,
-                 liquidity: str):
+                 liquidity_orig: str):
         self.ticker = ticker
         self.start_value = start_value
         self.start_time = start_time
         self.bid = None
         self.ask = None
         self.last = start_value
-        self.liquidity = liquidity
+        self.liquidity_orig = liquidity_orig
         self.liquidity_score = None
         self.volatility = None
         self.rate = None
@@ -34,20 +34,20 @@ class Stock(object):
         if not isinstance(self.start_value, float):
             logger.error('"start_value" is not of type float. Aborted.')
             error = True
-        if not isinstance(self.liquidity, str):
-            logger.error('"liquidity" is not of type str. Aborted.')
+        if not isinstance(self.liquidity_orig, str):
+            logger.error('"liquidity_orig" is not of type str. Aborted.')
             error = True
-        if self.liquidity not in ['UH', 'H', 'M', 'L', 'UL']:
-            logger.error('"liquidity" is not one of "UH", "H", "M", "L", "UL". Aborted.')
+        if self.liquidity_orig not in ['UH', 'H', 'M', 'L', 'UL']:
+            logger.error('"liquidity_orig" is not one of "UH", "H", "M", "L", "UL". Aborted.')
             error = True
         if error:
             quit()
         else:
-            cols = ['ticker', 'time', 'bid', 'ask', 'last', 'liquidity', 'liquidity_score']
+            cols = ['ticker', 'time', 'bid', 'ask', 'last', 'liquidity_orig', 'liquidity_score']
             self.history = pd.DataFrame(columns=cols)
-            self.liquidity_score = ls.liquidity_score(self.liquidity)
+            self.liquidity_score = ls.liquidity_score(self.liquidity_orig)
             self.push_to_history(self.ticker, self.start_time, self.bid, self.ask, self.start_value,
-                                 self.liquidity, self.liquidity_score)
+                                 self.liquidity_orig, self.liquidity_score)
 
             logger.info('Created Stock object "' + self.ticker + '".')
 
@@ -67,11 +67,11 @@ class Stock(object):
             tick_delta = gbm.gamma_dist(alpha, theta)
             last = gbm.random_price(tick_delta, self.last, self.rate, self.volatility)
             self.last = last
-            self.liquidity = ls.liquidity_state(self.liquidity)
-            self.liquidity_score = ls.liquidity_score(self.liquidity)
-            self.bid, self.ask = ls.bid_ask(self.liquidity, self.last)
+            liquidity_state = ls.liquidity_state(self.liquidity_orig)
+            self.liquidity_score = ls.liquidity_score(liquidity_state)
+            self.bid, self.ask = ls.bid_ask(liquidity_state, self.last)
             self.push_to_history(self.ticker, timer, self.bid, self.ask, last,
-                                 self.liquidity, self.liquidity_score)
+                                 self.liquidity_orig, self.liquidity_score)
             timer += tick_delta
             counter += 1
         logger.info('Added ' + str(counter) + ' rows to ' + self.ticker + '.')
@@ -103,7 +103,7 @@ class Stock(object):
         trace_last = go.Scatter(x=self.history['time'],
                                 y=self.history['last'],
                                 mode='lines',
-                                name='line',
+                                name='Last',
                                 marker=dict(
                                     size=6,
                                     color='rgb(181, 32, 160)',
@@ -113,7 +113,7 @@ class Stock(object):
         trace_ask = go.Scatter(x=self.history['time'],
                                y=self.history['ask'],
                                mode='lines',
-                               name='line',
+                               name='Ask',
                                marker=dict(
                                    size=6,
                                    color='rgb(44, 169, 247)',
@@ -124,7 +124,7 @@ class Stock(object):
         trace_bid = go.Scatter(x=self.history['time'],
                                y=self.history['bid'],
                                mode='lines',
-                               name='line',
+                               name='Bid',
                                opacity=0.85,
                                marker=dict(
                                    size=6,
@@ -133,9 +133,27 @@ class Stock(object):
                                    line={'width': 0.5}
                                ))
 
-        data = [trace_last, trace_ask, trace_bid]
-        layout = ds.scatter_layout(self.ticker, 'Time stamp', 'Last')
-        fig = go.Figure(data=data, layout=layout)
+        trace_liq = go.Bar(x=self.history['time'],
+                           y=self.history['liquidity_score'], yaxis='y2',
+                           name='Liquidity Score',
+                           marker=dict(
+                               color='rgba(55, 128, 191, 0.7)',
+                               line=dict(
+                                   color='rgba(55, 128, 191, 1.0)')
+                               ), opacity=0.5)
+
+        # data = [trace_last, trace_ask, trace_bid, trace_liq]
+        # layout = go.Layout(title=self.ticker, yaxis=dict(title='Last'),
+        #                    yaxis2=dict(title='Liquidity score',
+        #                    overlaying='y', side='right'))
+
+        fig = tools.make_subplots(rows=2, cols=1, shared_xaxes=True, shared_yaxes=False, vertical_spacing=0.1)
+        fig.append_trace(trace_last, 1, 1)
+        fig.append_trace(trace_bid, 1, 1)
+        fig.append_trace(trace_ask, 1, 1)
+        fig.append_trace(trace_liq, 2, 1)
+        fig['layout'].update(height=600, width=900, title=self.ticker, bargap=0)
+        # fig = go.Figure(data=data, layout=layout)
 
         try:
             pyo.plot(fig, filename=file_name)
