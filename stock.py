@@ -1,11 +1,9 @@
 import pandas as pd
 import datetime as dt
 import matplotlib.pyplot as plt
-import plotly.offline as pyo
-import plotly.graph_objs as go
-from plotly import tools
 from loguru import logger
-import gbm, liquidity_states as ls
+import gbm
+import liquidity_states as ls
 
 
 class Stock(object):
@@ -14,11 +12,10 @@ class Stock(object):
         self.ticker = ticker
         self.start_value = start_value
         self.start_time = start_time
-        self.bid = None
-        self.ask = None
         self.last = start_value
         self.liquidity_orig = liquidity_orig
         self.liquidity_score = None
+        self.bid, self.ask = ls.bid_ask(liquidity_orig, self.last)
         self.volatility = None
         self.rate = None
         self.tick_time = self.start_time
@@ -65,6 +62,7 @@ class Stock(object):
             self.rate = rate
         while timer <= end_time:
             tick_delta = gbm.gamma_dist(alpha, theta)
+            timer += tick_delta
             last = gbm.random_price(tick_delta, self.last, self.rate, self.volatility)
             self.last = last
             liquidity_state = ls.liquidity_state(self.liquidity_orig)
@@ -72,94 +70,26 @@ class Stock(object):
             self.bid, self.ask = ls.bid_ask(liquidity_state, self.last)
             self.push_to_history(self.ticker, timer, self.bid, self.ask, last,
                                  self.liquidity_orig, self.liquidity_score)
-            timer += tick_delta
             counter += 1
         logger.info('Added ' + str(counter) + ' rows to ' + self.ticker + '.')
 
     def plot(self):
-        plt.subplot(2, 1, 1)
-        self.history.plot(x='time', y='last')
-        self.history.plot(x='time', y='bid')
-        self.history.plot(x='time', y='ask')
-        plt.ylabel('Quotes')
-        plt.xlabel('Time')
-        plt.legend('best')
-        plt.grid(True)
-        plt.axis('tight')
+        fig, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]}, sharex='all', sharey='none')
 
-        plt.subplot(2, 1, 2)
+        self.history.plot(x='time', y='bid', ax=ax1, color='blue', linewidth=1)
+        self.history.plot(x='time', y='ask', ax=ax1, color='red', linewidth=1)
+        ax1.set(ylabel='Price')
+        ax1.legend(loc='lower center', ncol=2, fontsize=8)
+
+        self.history.plot(x='time', y='liquidity_score', ax=ax2, color='black', linewidth=1, legend=None)
+        ax2.set(ylabel='Liquidity Score')
+        ax2.set_yticks([1, 2, 3, 4, 5])
+
+        plt.xlabel('Time')
+
+        plt.savefig(self.ticker + '.png')
 
         return plt
-
-    def dataframe_plot(self) -> None:
-        """
-        Plot a plotly time series plot from a pd.DataFrame.
-        Save a html-file.
-
-        :return: None.
-        """
-        file_name = self.ticker + '.html'
-
-        trace_last = go.Scatter(x=self.history['time'],
-                                y=self.history['last'],
-                                mode='lines',
-                                name='Last',
-                                marker=dict(
-                                    size=6,
-                                    color='rgb(181, 32, 160)',
-                                    line={'width': 0.5}
-                                ))
-
-        trace_ask = go.Scatter(x=self.history['time'],
-                               y=self.history['ask'],
-                               mode='lines',
-                               name='Ask',
-                               marker=dict(
-                                   size=6,
-                                   color='rgb(44, 169, 247)',
-                                   symbol='pentagon',
-                                   line={'width': 0.5}
-                               ))
-
-        trace_bid = go.Scatter(x=self.history['time'],
-                               y=self.history['bid'],
-                               mode='lines',
-                               name='Bid',
-                               opacity=0.85,
-                               marker=dict(
-                                   size=6,
-                                   color='rgb(44, 169, 247)',
-                                   symbol='pentagon',
-                                   line={'width': 0.5}
-                               ))
-
-        trace_liq = go.Bar(x=self.history['time'],
-                           y=self.history['liquidity_score'], yaxis='y2',
-                           name='Liquidity Score',
-                           marker=dict(
-                               color='rgba(55, 128, 191, 0.7)',
-                               line=dict(
-                                   color='rgba(55, 128, 191, 1.0)')
-                               ), opacity=0.5)
-
-        # data = [trace_last, trace_ask, trace_bid, trace_liq]
-        # layout = go.Layout(title=self.ticker, yaxis=dict(title='Last'),
-        #                    yaxis2=dict(title='Liquidity score',
-        #                    overlaying='y', side='right'))
-
-        fig = tools.make_subplots(rows=2, cols=1, shared_xaxes=True, shared_yaxes=False, vertical_spacing=0.1)
-        fig.append_trace(trace_last, 1, 1)
-        fig.append_trace(trace_bid, 1, 1)
-        fig.append_trace(trace_ask, 1, 1)
-        fig.append_trace(trace_liq, 2, 1)
-        fig['layout'].update(height=600, width=900, title=self.ticker, bargap=0)
-        # fig = go.Figure(data=data, layout=layout)
-
-        try:
-            pyo.plot(fig, filename=file_name)
-            logger.info('Line plot created. File name: "' + file_name + '".')
-        except Exception as e:
-            logger.critical('Line plot creation failed. Exception: "' + str(e) + '".')
 
     def __getattr__(self, item):
         """
