@@ -2,6 +2,20 @@ import numpy as np
 
 
 def liquidity_state(state_orig):
+    """
+
+    Transition the liquidity state depending on the non changing original liquidity state.
+    Non changing because otherwise a stock classed as "UH" could move and become "UL" which is
+    not desirable (certain stocks are always liquid Apple etc.).
+
+    :param state_orig: Stocks original liquidity state:
+            UH = Ultra High. Always super tight bid ask spread.
+            H = High. Always tight bid ask spread.
+            M = Medium. Always bid ask spread.
+            L = Low. Often bid and ask. Wider spread.
+            UL = Ultra Low. Sometime bid and ask. Super wide spread.
+    :return: New liquidity state.
+    """
     new_state = ''
     if state_orig == 'UH':
         transition_name = ['UHUH', 'UHH', 'UHM', 'UHL', 'UHUL']
@@ -32,12 +46,32 @@ def liquidity_state(state_orig):
     return new_state
 
 
-def liquidity_score(liquidity):
+def liquidity_score(liquidity: str) -> int:
+    """
+
+    Translate from liquidity state (text) to liquidity state (numerical).
+
+    :param liquidity: Liquidity state (text).
+    :return: Liquidity score (numerical).
+    """
     score = {'UH': 5, 'H': 4, 'M': 3, 'L': 2, 'UL': 1}
     return score[liquidity]
 
 
-def bid_ask(liquidity, last):
+def bid_ask(liquidity: str, last: float) -> (float, float):
+    """
+
+    Generate bid and ask from liquidity state.
+
+    :param liquidity: Stocks original liquidity state:
+            UH = Ultra High. Always super tight bid ask spread.
+            H = High. Always tight bid ask spread.
+            M = Medium. Always bid ask spread.
+            L = Low. Often bid and ask. Wider spread.
+            UL = Ultra Low. Sometime bid and ask. Super wide spread.
+    :param last: Last price.
+    :return: Bid and ask. One or both may be NULL.
+    """
     bid = last
     ask = last
     if liquidity == 'UH':
